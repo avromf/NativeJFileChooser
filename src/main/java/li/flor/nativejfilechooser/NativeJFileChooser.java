@@ -33,42 +33,40 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import javafx.application.Platform;
-import javafx.embed.swing.JFXPanel;
-import javafx.stage.DirectoryChooser;
-import javafx.stage.FileChooser;
 import javax.swing.JFileChooser;
-import static javax.swing.JFileChooser.DIRECTORIES_ONLY;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.filechooser.FileSystemView;
+import javafx.application.Platform;
+import javafx.collections.ObservableList;
+import javafx.embed.swing.JFXPanel;
+import javafx.stage.DirectoryChooser;
+import javafx.stage.FileChooser;
+import javafx.stage.FileChooser.ExtensionFilter;
 
 /**
- * This is a drop-in replacement for Swing's file chooser. Instead of displaying
- * Swing's file chooser, it makes use of JavaFX's file chooser. JavaFX uses the
- * OS's native file chooser. Technically, this class is a memory hog, but its
- * use is convenient. Furthermore, if JavaFX is not available, the default file
- * chooser will be displayed instead. Of course, this class will not compile if
- * you don't have an JDK 8 or higher that has JavaFX support. Since this class
- * will have to call the constructor of JFileChooser, it won't increase the
- * performance of the file chooser; if anything, it might further decrease it.
- * Please note that some methods have not been overwritten and may not have any
- * impact on the file chooser. Sometimes, the new JavaFX file chooser does not
- * provide certain functionality. One feature that is not supported is the
- * selection of files AND directories. If trying to set this using
- * setFileSelectionMode(), still only files will be selectable.
+ * This is a drop-in replacement for Swing's file chooser.<p>
+ * Instead of displaying Swing's file chooser, it makes use of JavaFX's file chooser. JavaFX uses the OS's native file
+ * chooser. Technically, this class is a memory hog, but its use is convenient. Furthermore, if JavaFX is not available,
+ * the default file chooser will be displayed instead. Of course, this class will not compile if you don't have an JDK 8
+ * or higher that has JavaFX support. Since this class will have to call the constructor of JFileChooser, it won't
+ * increase the performance of the file chooser; if anything, it might further decrease it. Please note that some
+ * methods have not been overwritten and may not have any impact on the file chooser. Sometimes, the new JavaFX file
+ * chooser does not provide certain functionality. One feature that is not supported is the selection of files AND
+ * directories. If trying to set this using setFileSelectionMode(), still only files will be selectable.
  *
  * @author Steffen Flor
- * @version 1.6.3
+ * @version 1.6.4
  */
 public class NativeJFileChooser extends JFileChooser {
 
-    public static final boolean FX_AVAILABLE;
-    private List<File> currentFiles;
-    private FileChooser fileChooser;
-    private File currentFile;
-    private DirectoryChooser directoryChooser;
-
+	public static final boolean	FX_AVAILABLE;
+	protected List<File>				currentFiles;
+	protected FileChooser			fileChooser;
+	protected DirectoryChooser		directoryChooser;
+	protected File						currentFile;
+	protected File						currentDirectory;
+	
     static {
         boolean isFx;
         try {
@@ -88,13 +86,16 @@ public class NativeJFileChooser extends JFileChooser {
     }
 
     public NativeJFileChooser(String currentDirectoryPath) {
-        super(currentDirectoryPath);
-        initFxFileChooser(new File(currentDirectoryPath));
+		super();
+		File dir = new File(currentDirectoryPath);
+		initFxFileChooser(dir);
+		setCurrentDirectory(dir);
     }
 
     public NativeJFileChooser(File currentDirectory) {
-        super(currentDirectory);
+        super();
         initFxFileChooser(currentDirectory);
+        setCurrentDirectory(currentDirectory);
     }
 
     public NativeJFileChooser(FileSystemView fsv) {
@@ -103,13 +104,16 @@ public class NativeJFileChooser extends JFileChooser {
     }
 
     public NativeJFileChooser(File currentDirectory, FileSystemView fsv) {
-        super(currentDirectory, fsv);
-        initFxFileChooser(currentDirectory);
+		super(fsv);
+		initFxFileChooser(currentDirectory);
+		setCurrentDirectory(currentDirectory);
     }
 
     public NativeJFileChooser(String currentDirectoryPath, FileSystemView fsv) {
-        super(currentDirectoryPath, fsv);
-        initFxFileChooser(new File(currentDirectoryPath));
+		super(fsv);
+		File dir = new File(currentDirectoryPath);
+		initFxFileChooser(dir);
+		setCurrentDirectory(dir);
     }
 
     @Override
@@ -232,7 +236,14 @@ public class NativeJFileChooser extends JFileChooser {
         if (!FX_AVAILABLE) {
             return super.getSelectedFile();
         }
-        return currentFile;
+        if (isMultiSelectionEnabled()) {
+      	  if (currentFiles != null && !currentFiles.isEmpty())
+      		  return currentFiles.get(0);
+      	  else
+      		  return null;
+        }
+        else
+      	  return currentFile;
     }
 
     @Override
@@ -263,17 +274,39 @@ public class NativeJFileChooser extends JFileChooser {
                 if (directoryChooser != null) {
                     directoryChooser.setInitialDirectory(file.getAbsoluteFile());
                 }
-            } else if (file.isFile()) {
-                fileChooser.setInitialDirectory(file.getParentFile());
+            } else {
+                File parentFile = file.getParentFile();
+                if (parentFile != null && parentFile.isDirectory())
+               	 fileChooser.setInitialDirectory(parentFile);
+                
                 fileChooser.setInitialFileName(file.getName());
 
-                if (directoryChooser != null) {
-                    directoryChooser.setInitialDirectory(file.getParentFile());
+                if (directoryChooser != null && parentFile != null && parentFile.isDirectory()) {
+                    directoryChooser.setInitialDirectory(parentFile);
                 }
             }
 
         }
     }
+    
+    @Override
+   public void setCurrentDirectory(File dir)
+   {
+   	 if (!FX_AVAILABLE) {
+   		 super.setCurrentDirectory(dir);
+   		 return;
+   	 }
+   	 currentDirectory = dir;
+   	 if (dir != null) {
+          if (dir.isDirectory()) {
+              fileChooser.setInitialDirectory(dir.getAbsoluteFile());
+
+              if (directoryChooser != null) {
+                  directoryChooser.setInitialDirectory(dir.getAbsoluteFile());
+              }
+          }
+   	 }
+   }
 
     @Override
     public void setFileSelectionMode(int mode) {
@@ -285,6 +318,7 @@ public class NativeJFileChooser extends JFileChooser {
             if (directoryChooser == null) {
                 directoryChooser = new DirectoryChooser();
             }
+            setCurrentDirectory(currentDirectory);
             // Set file again, so directory chooser will be affected by it
             setSelectedFile(currentFile);
             setDialogTitle(getDialogTitle());
@@ -339,12 +373,50 @@ public class NativeJFileChooser extends JFileChooser {
             for (String extension : f.getExtensions()) {
                 ext.add(extension.replaceAll("^\\*?\\.?(.*)$", "*.$1"));
             }
-            fileChooser.getExtensionFilters()
-                    .add(new FileChooser.ExtensionFilter(f.getDescription(), ext));
+            FileChooser.ExtensionFilter extensionFilter = new FileChooser.ExtensionFilter(f.getDescription(), ext);
+				if (!containsFilter(fileChooser.getExtensionFilters(), extensionFilter))
+					fileChooser.getExtensionFilters().add(extensionFilter);
         }
     }
-
+    
     @Override
+   public void setFileFilter(FileFilter filter)
+   {
+   	 if (!FX_AVAILABLE) {
+   		 super.setFileFilter(filter);
+          return;
+      }
+   	 if (filter.getClass().equals(FileNameExtensionFilter.class)) {
+          FileNameExtensionFilter f = (FileNameExtensionFilter) filter;
+
+          List<String> ext = new ArrayList<>();
+          for (String extension : f.getExtensions()) {
+              ext.add(extension.replaceAll("^\\*?\\.?(.*)$", "*.$1"));
+          }
+          
+			FileChooser.ExtensionFilter extensionFilter = new FileChooser.ExtensionFilter(f.getDescription(), ext);
+			if (!containsFilter(fileChooser.getExtensionFilters(), extensionFilter))
+				fileChooser.getExtensionFilters().add(extensionFilter);
+			
+         fileChooser.setSelectedExtensionFilter(extensionFilter);
+      }
+   	
+   }
+    
+	private boolean containsFilter(ObservableList<ExtensionFilter> extensionFilters, ExtensionFilter extensionFilter)
+	{
+		return extensionFilters.stream().anyMatch(f -> matchFilter(extensionFilter, f));
+	}
+
+	private boolean matchFilter(ExtensionFilter extensionFilter, ExtensionFilter compareFilter)
+	{
+		if (!extensionFilter.getDescription().equals(compareFilter.getDescription()))
+			return false;
+		else
+			return extensionFilter.getExtensions().equals(compareFilter.getExtensions());
+	}
+
+	@Override
     public void setAcceptAllFileFilterUsed(boolean bool) {
         boolean differs = isAcceptAllFileFilterUsed() ^ bool;
         super.setAcceptAllFileFilterUsed(bool);
@@ -375,6 +447,8 @@ public class NativeJFileChooser extends JFileChooser {
             fileChooser = new FileChooser();
             this.currentFile = currentFile;
             setSelectedFile(currentFile);
+            fileChooser.getExtensionFilters()
+            	.add(new FileChooser.ExtensionFilter("All files", "*.*"));
         }
     }
 
