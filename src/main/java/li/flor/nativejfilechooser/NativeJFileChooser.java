@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileFilter;
@@ -374,7 +375,7 @@ public class NativeJFileChooser extends JFileChooser {
                 ext.add(extension.replaceAll("^\\*?\\.?(.*)$", "*.$1"));
             }
             FileChooser.ExtensionFilter extensionFilter = new FileChooser.ExtensionFilter(f.getDescription(), ext);
-				if (!containsFilter(fileChooser.getExtensionFilters(), extensionFilter))
+				if (!getCurrentFilter(fileChooser.getExtensionFilters(), extensionFilter).isPresent())
 					fileChooser.getExtensionFilters().add(extensionFilter);
         }
     }
@@ -395,17 +396,20 @@ public class NativeJFileChooser extends JFileChooser {
           }
           
 			FileChooser.ExtensionFilter extensionFilter = new FileChooser.ExtensionFilter(f.getDescription(), ext);
-			if (!containsFilter(fileChooser.getExtensionFilters(), extensionFilter))
+			Optional<ExtensionFilter> currentFilter = getCurrentFilter(fileChooser.getExtensionFilters(), extensionFilter);
+			if (!currentFilter.isPresent()) {
 				fileChooser.getExtensionFilters().add(extensionFilter);
-			
-         fileChooser.setSelectedExtensionFilter(extensionFilter);
+				fileChooser.setSelectedExtensionFilter(extensionFilter);
+			}
+			else
+				fileChooser.setSelectedExtensionFilter(currentFilter.get());
       }
    	
    }
     
-	private boolean containsFilter(ObservableList<ExtensionFilter> extensionFilters, ExtensionFilter extensionFilter)
+	private Optional<ExtensionFilter> getCurrentFilter(ObservableList<ExtensionFilter> extensionFilters, ExtensionFilter extensionFilter)
 	{
-		return extensionFilters.stream().anyMatch(f -> matchFilter(extensionFilter, f));
+		return extensionFilters.stream().filter(f -> matchFilter(extensionFilter, f)).findAny();
 	}
 
 	private boolean matchFilter(ExtensionFilter extensionFilter, ExtensionFilter compareFilter)
