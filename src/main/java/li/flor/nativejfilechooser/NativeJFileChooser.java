@@ -246,6 +246,15 @@ public class NativeJFileChooser extends JFileChooser {
         else
       	  return currentFile;
     }
+    
+    @Override
+	public File getCurrentDirectory() {
+		if (!FX_AVAILABLE) {
+			return super.getCurrentDirectory();
+		}
+		else
+			return currentDirectory;
+	}
 
     @Override
     public void setSelectedFiles(File[] selectedFiles) {
